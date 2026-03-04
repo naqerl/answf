@@ -102,7 +102,8 @@ func parseFlags() config {
 	case len(args) == 1:
 		cfg.TargetURL = strings.TrimSpace(args[0])
 	default:
-		cfg.TargetURL = "https://google.com/search?q=helloworld"
+		flag.Usage()
+		os.Exit(0)
 	}
 
 	return cfg
