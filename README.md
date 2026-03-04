@@ -18,7 +18,7 @@ It also supports SearXNG search queries.
 ## Install
 
 ```bash
-go install github.com/naqerl/answf
+go install github.com/naqerl/answf@latest
 ```
 
 ## Run

@@ -1,4 +1,4 @@
-module answf
+module github.com/naqerl/answf
 
 go 1.26
 
