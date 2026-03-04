@@ -1,13 +1,30 @@
 # answf
 
-Go `1.26` CLI that uses [`playwright-go`](https://github.com/playwright-community/playwright-go)
+> >Codex What acronym names for `answf` can you imagine?
+>
+> 1. Answer Surf
+> 2. AI Network Search Workflow
+> 3. Adaptive Search and Web Fetch
+> 4. Agentic Search Workflow
+> 5. Async Navigation, Search, Web Fetch
+> 6. Automated Navigation & Scrape Workflow
+> 7. Ask, Navigate, Search, Web Fetch
+> 8. A New Search Workflow For
+
+Go CLI that uses [`playwright-go`](https://github.com/playwright-community/playwright-go)
 to connect to Browserless and print rendered HTML (or Markdown) for a URL.
 It also supports SearXNG search queries.
+
+## Install
+
+```bash
+go install github.com/naqerl/answf
+```
 
 ## Run
 
 ```bash
-go run . -fetch google.com/search?q=helloworld
+answf -fetch google.com/search?q=helloworld
 ```
 
 Defaults:
@@ -19,20 +36,20 @@ Defaults:
 Optional endpoint override:
 
 ```bash
-BROWSERLESS_WS_ENDPOINT=wss://browserless.aishift.co go run . -fetch google.com/search?q=helloworld
+BROWSERLESS_WS_ENDPOINT=wss://browserless.aishift.co answf -fetch google.com/search?q=helloworld
 ```
 
 Markdown output:
 
 ```bash
-go run . -fetch https://github.com/browserless/browserless -md
+answf -fetch https://github.com/browserless/browserless -md
 ```
 
 Search output (plain text results):
 
 ```bash
-go run . -search "browserless playwright"
-go run . -s "browserless playwright"
+answf -search "browserless playwright"
+answf -s "browserless playwright"
 ```
 
 Search defaults:
