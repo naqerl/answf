@@ -31,6 +31,10 @@ Defaults:
 - `-fetch`: `https://google.com/search?q=helloworld` (if omitted)
 - `--ws-endpoint`: `wss://browserless.aishift.co`
 - `--timeout-ms`: `30000`
+- `--fallback-textise`: `true`
+- `--textise-base-url`: `https://r.jina.ai/http://`
+- `--cache-dir`: `~/.cache/answf`
+- `--no-cache`: `false`
 - `-md`: disabled (prints HTML by default)
 
 Optional endpoint override:
@@ -45,6 +49,12 @@ Markdown output:
 answf -fetch https://github.com/browserless/browserless -md
 ```
 
+Fallback fetch for bot-protected pages:
+
+```bash
+answf -fetch "https://wiki.archlinux.org/title/Systemd/Sandboxing" --fallback-textise -md
+```
+
 Search output (plain text results):
 
 ```bash
@@ -54,3 +64,13 @@ answf -s "browserless playwright"
 
 Search defaults:
 - `-searx-url`: `https://searx.aishift.co` (or `SEARX_URL`)
+- `--top`: `0` (all results)
+- `-v` / `--verbose`: `false` (hide engine metadata)
+
+Search examples:
+
+```bash
+answf -s "systemd sandboxing" --top 5
+answf -s "systemd sandboxing" -v
+answf -s "golang context logger" --no-cache
+```
