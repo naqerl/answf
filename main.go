@@ -66,10 +66,6 @@ func parseFlags() config {
 	flag.Parse()
 
 	args := flag.Args()
-	if len(args) > 1 {
-		fmt.Fprintln(os.Stderr, "error: only one positional argument is supported")
-		os.Exit(2)
-	}
 
 	cfg.FetchURL = strings.TrimSpace(cfg.FetchURL)
 	cfg.Search = strings.TrimSpace(cfg.Search)
@@ -99,11 +95,21 @@ func parseFlags() config {
 		os.Exit(2)
 	case cfg.FetchURL != "":
 		cfg.TargetURL = cfg.FetchURL
-	case len(args) == 1:
-		cfg.TargetURL = strings.TrimSpace(args[0])
 	default:
-		flag.Usage()
-		os.Exit(0)
+		if len(args) == 0 {
+			flag.Usage()
+			os.Exit(0)
+		}
+		positional := strings.TrimSpace(strings.Join(args, " "))
+		if positional == "" {
+			flag.Usage()
+			os.Exit(0)
+		}
+		if looksLikeURL(positional) {
+			cfg.TargetURL = positional
+		} else {
+			cfg.Search = positional
+		}
 	}
 
 	return cfg
@@ -530,6 +536,27 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func looksLikeURL(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return false
+	}
+	if strings.ContainsAny(raw, " \t\r\n") {
+		return false
+	}
+
+	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
+		u, err := url.Parse(raw)
+		return err == nil && strings.TrimSpace(u.Host) != ""
+	}
+
+	if strings.HasPrefix(raw, "localhost") {
+		return true
+	}
+
+	return strings.Contains(raw, ".") || strings.Contains(raw, "/")
 }
 
 func defaultCacheDir() string {

@@ -27,6 +27,13 @@ go install github.com/naqerl/answf@latest
 answf -fetch google.com/search?q=helloworld
 ```
 
+Friendly positional mode (no `-fetch`/`-search` needed):
+
+```bash
+answf "systemd sandboxing"                              # search
+answf "https://wiki.archlinux.org/title/Systemd/Sandboxing" # fetch
+```
+
 Defaults:
 - `-fetch`: `https://google.com/search?q=helloworld` (if omitted)
 - `--ws-endpoint`: `wss://browserless.aishift.co`
