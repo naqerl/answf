@@ -16,7 +16,7 @@ func TestParseLoadsConfigDefaults(t *testing.T) {
 		t.Fatalf("write config: %v", err)
 	}
 
-	cfg, err := Parse([]string{"--config", cfgPath, "-search", "systemd sandboxing"}, os.Getenv)
+	cfg, err := Parse([]string{"--config", cfgPath, "search", "systemd sandboxing"}, os.Getenv)
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
@@ -31,21 +31,31 @@ func TestParseLoadsConfigDefaults(t *testing.T) {
 	}
 }
 
-func TestParseCLIOverridesConfigDefaults(t *testing.T) {
+func TestParseUsesConfigValuesForOperationalSettings(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yml")
-	if err := os.WriteFile(cfgPath, []byte("search:\n  searx_url: https://searx.example\n"), 0o644); err != nil {
+	content := "fetch:\n  playwright_url: wss://browserless.example\n  timeout_ms: 12000\nsearch:\n  searx_url: https://searx.example\n  timeout_ms: 15000\n"
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 
-	cfg, err := Parse([]string{"--config", cfgPath, "-search", "q", "--searx-url", "https://override.example"}, os.Getenv)
+	cfg, err := Parse([]string{"--config", cfgPath, "search", "q"}, os.Getenv)
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
-	if cfg.SearXURL != "https://override.example" {
-		t.Fatalf("expected CLI override, got %q", cfg.SearXURL)
+	if cfg.PlaywrightURL != "wss://browserless.example" {
+		t.Fatalf("unexpected playwright url: %q", cfg.PlaywrightURL)
+	}
+	if cfg.PlaywrightTimeoutMS != 12000 {
+		t.Fatalf("unexpected fetch timeout: %v", cfg.PlaywrightTimeoutMS)
+	}
+	if cfg.SearXURL != "https://searx.example" {
+		t.Fatalf("unexpected searx url: %q", cfg.SearXURL)
+	}
+	if cfg.SearchTimeoutMS != 15000 {
+		t.Fatalf("unexpected search timeout: %v", cfg.SearchTimeoutMS)
 	}
 }
 
@@ -70,7 +80,7 @@ func TestParseUsesXDGConfigPath(t *testing.T) {
 		return ""
 	}
 
-	cfg, err := Parse([]string{"-search", "q"}, getenv)
+	cfg, err := Parse([]string{"search", "q"}, getenv)
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
@@ -88,7 +98,7 @@ func TestParseHTMLOverridesMarkdownDefault(t *testing.T) {
 		t.Fatalf("write config: %v", err)
 	}
 
-	cfg, err := Parse([]string{"--config", cfgPath, "-fetch", "example.com", "-html"}, os.Getenv)
+	cfg, err := Parse([]string{"--config", cfgPath, "fetch", "-html", "example.com"}, os.Getenv)
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
@@ -100,7 +110,7 @@ func TestParseHTMLOverridesMarkdownDefault(t *testing.T) {
 func TestParseRejectsMDAndHTMLTogether(t *testing.T) {
 	t.Parallel()
 
-	_, err := Parse([]string{"-fetch", "example.com", "-md", "-html"}, os.Getenv)
+	_, err := Parse([]string{"fetch", "-md", "-html", "example.com"}, os.Getenv)
 	if err == nil {
 		t.Fatalf("expected error when both -md and -html are set")
 	}

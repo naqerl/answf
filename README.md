@@ -24,14 +24,7 @@ go install github.com/naqerl/answf@latest
 ## Run
 
 ```bash
-answf -fetch google.com/search?q=helloworld
-```
-
-Friendly positional mode (no `-fetch`/`-search` needed):
-
-```bash
-answf "systemd sandboxing"                              # search
-answf "https://wiki.archlinux.org/title/Systemd/Sandboxing" # fetch
+answf fetch google.com/search?q=helloworld
 ```
 
 Config file lookup order:
@@ -53,37 +46,36 @@ search:
   timeout_ms: 30000
 ```
 
-CLI flags still override config values.
+CLI flags override config where applicable (`-md`/`-html`, `-top`, `-v`, `--no-cache`).
 
 Markdown output:
 
 ```bash
-answf -fetch https://github.com/browserless/browserless -md
-answf -fetch https://github.com/browserless/browserless -html
+answf fetch https://github.com/browserless/browserless -md
+answf fetch https://github.com/browserless/browserless -html
 ```
 
 Fallback fetch for bot-protected pages:
 
 ```bash
-answf -fetch "https://wiki.archlinux.org/title/Systemd/Sandboxing" --fallback-textise -md
+answf fetch "https://wiki.archlinux.org/title/Systemd/Sandboxing" -md
 ```
 
 Search output (plain text results):
 
 ```bash
-answf -search "browserless playwright"
-answf -s "browserless playwright"
+answf search "browserless playwright"
 ```
 
 Search defaults:
-- `-searx-url`: from config file (or explicit `--searx-url`)
-- `--top`: `0` (all results)
+- Endpoint/timeouts are read from config file (`fetch` / `search` sections)
+- `-top`: `0` (all results)
 - `-v` / `--verbose`: `false` (hide engine metadata)
 
 Search examples:
 
 ```bash
-answf -s "systemd sandboxing" --top 5
-answf -s "systemd sandboxing" -v
-answf -fetch "https://example.com" --no-cache
+answf search "systemd sandboxing" -top 5
+answf search "systemd sandboxing" -v
+answf fetch "https://example.com" --no-cache
 ```

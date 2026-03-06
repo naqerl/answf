@@ -19,9 +19,59 @@ func Parse(args []string, getenv func(string) string) (Config, error) {
 		return Config{}, err
 	}
 
-	var cfg Config
-	var forceHTML bool
-	fs := newFlagSet(&cfg, &forceHTML, d, os.Stderr)
+	cleanArgs, err := stripConfigArgs(args)
+	if err != nil {
+		return Config{}, err
+	}
+	if len(cleanArgs) == 0 {
+		PrintUsage(os.Stderr)
+		return Config{}, ErrUsage
+	}
+
+	command := strings.TrimSpace(cleanArgs[0])
+	subArgs := cleanArgs[1:]
+
+	switch command {
+	case "help", "-h", "--help":
+		PrintUsage(os.Stderr)
+		return Config{}, ErrUsage
+	case "fetch":
+		cfg, err := parseFetch(subArgs, d, os.Stderr)
+		if err != nil {
+			if errors.Is(err, flag.ErrHelp) {
+				return Config{}, ErrUsage
+			}
+			return Config{}, err
+		}
+		return cfg, nil
+	case "search":
+		cfg, err := parseSearch(subArgs, d, os.Stderr)
+		if err != nil {
+			if errors.Is(err, flag.ErrHelp) {
+				return Config{}, ErrUsage
+			}
+			return Config{}, err
+		}
+		return cfg, nil
+	default:
+		PrintUsage(os.Stderr)
+		return Config{}, fmt.Errorf("unknown command %q (expected: fetch or search)", command)
+	}
+}
+
+func parseFetch(args []string, d defaults, output io.Writer) (Config, error) {
+	cfg := baseConfigFromDefaults(d)
+	fs := flag.NewFlagSet("answf fetch", flag.ContinueOnError)
+	fs.SetOutput(output)
+	fs.BoolVar(&cfg.Markdown, "md", d.FetchMarkdown, "Output markdown")
+	forceHTML := false
+	fs.BoolVar(&forceHTML, "html", false, "Output HTML")
+	fs.BoolVar(&cfg.NoCache, "no-cache", false, "Disable cache")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: answf fetch [flags] <url>\n")
+		fs.PrintDefaults()
+	}
+
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
 	}
@@ -40,19 +90,16 @@ func Parse(args []string, getenv func(string) string) (Config, error) {
 	}
 
 	remaining := fs.Args()
-	cfg.FetchURL = strings.TrimSpace(cfg.FetchURL)
-	cfg.Search = strings.TrimSpace(cfg.Search)
-	cfg.PlaywrightURL = strings.TrimSpace(cfg.PlaywrightURL)
-	cfg.SearXURL = strings.TrimSpace(cfg.SearXURL)
+	if len(remaining) == 0 {
+		return Config{}, errors.New("fetch URL is required")
+	}
+	if len(remaining) > 1 {
+		return Config{}, errors.New("fetch expects a single URL argument")
+	}
 
-	if cfg.Top < 0 {
-		return Config{}, errors.New("-top must be >= 0")
-	}
-	if cfg.PlaywrightTimeoutMS <= 0 {
-		return Config{}, errors.New("-playwright-timeout-ms must be > 0")
-	}
-	if cfg.SearchTimeoutMS <= 0 {
-		return Config{}, errors.New("-search-timeout-ms must be > 0")
+	target := strings.TrimSpace(remaining[0])
+	if target == "" {
+		return Config{}, errors.New("fetch URL is required")
 	}
 
 	expandedCacheDir, err := expandPath(cfg.CacheDir)
@@ -60,84 +107,104 @@ func Parse(args []string, getenv func(string) string) (Config, error) {
 		return Config{}, fmt.Errorf("invalid cache-dir: %w", err)
 	}
 	cfg.CacheDir = expandedCacheDir
-
-	switch {
-	case cfg.FetchURL != "" && cfg.Search != "":
-		return Config{}, errors.New("use either -fetch or -search/-s, not both")
-	case cfg.Search != "":
-		if len(remaining) > 0 {
-			return Config{}, errors.New("positional argument is not supported with -search/-s")
-		}
-	case cfg.FetchURL != "" && len(remaining) > 0:
-		return Config{}, errors.New("provide URL either via -fetch or as positional argument, not both")
-	case cfg.FetchURL != "":
-		cfg.TargetURL = cfg.FetchURL
-	default:
-		if len(remaining) == 0 {
-			return Config{}, ErrUsage
-		}
-		positional := strings.TrimSpace(strings.Join(remaining, " "))
-		if positional == "" {
-			return Config{}, ErrUsage
-		}
-		if looksLikeURL(positional) {
-			cfg.TargetURL = positional
-		} else {
-			cfg.Search = positional
-		}
-	}
-
+	cfg.FetchURL = target
+	cfg.TargetURL = target
+	cfg.Search = ""
 	return cfg, nil
 }
 
-func PrintUsage(w io.Writer) {
-	d, err := loadDefaults(nil, os.Getenv)
-	if err != nil {
-		d = defaults{
-			ConfigPath:          "$HOME/.config/answf/config.yml",
-			PlaywrightTimeoutMS: 30000,
-			SearchTimeoutMS:     30000,
-			FallbackTextise:     true,
-			TextiseBaseURL:      "https://r.jina.ai",
-			CacheDir:            defaultCacheDir(),
-			FetchMarkdown:       false,
-		}
-	}
-
-	var cfg Config
-	var forceHTML bool
-	fs := newFlagSet(&cfg, &forceHTML, d, w)
-	fmt.Fprintf(fs.Output(), "Usage of %s:\n", fs.Name())
-	fs.PrintDefaults()
-}
-
-func newFlagSet(cfg *Config, forceHTML *bool, d defaults, output io.Writer) *flag.FlagSet {
-	fs := flag.NewFlagSet("answf", flag.ContinueOnError)
+func parseSearch(args []string, d defaults, output io.Writer) (Config, error) {
+	cfg := baseConfigFromDefaults(d)
+	fs := flag.NewFlagSet("answf search", flag.ContinueOnError)
 	fs.SetOutput(output)
-	fs.StringVar(&cfg.ConfigPath, "config", d.ConfigPath, "Path to answf config.yml")
-	fs.StringVar(&cfg.FetchURL, "fetch", "", "Fetch and render content from URL")
-	fs.StringVar(&cfg.Search, "search", "", "Search query to run against SearXNG and print results")
-	fs.StringVar(&cfg.Search, "s", "", "Alias for -search")
-	fs.BoolVar(&cfg.Markdown, "md", d.FetchMarkdown, "Output markdown for -fetch")
-	fs.BoolVar(forceHTML, "html", false, "Output HTML for -fetch")
-	fs.StringVar(&cfg.PlaywrightURL, "playwright-url", d.PlaywrightURL, "Playwright Browserless websocket URL")
-	fs.StringVar(&cfg.PlaywrightURL, "playwright-ws-endpoint", d.PlaywrightURL, "Alias for -playwright-url")
-	fs.StringVar(&cfg.PlaywrightURL, "ws-endpoint", d.PlaywrightURL, "Alias for -playwright-url")
-	fs.StringVar(&cfg.SearXURL, "searx-url", d.SearXURL, "SearXNG base URL")
-	fs.Float64Var(&cfg.PlaywrightTimeoutMS, "playwright-timeout-ms", d.PlaywrightTimeoutMS, "Playwright fetch timeout in milliseconds")
-	fs.Float64Var(&cfg.SearchTimeoutMS, "search-timeout-ms", d.SearchTimeoutMS, "Search request timeout in milliseconds")
-	fs.BoolVar(&cfg.FallbackTextise, "fallback-textise", d.FallbackTextise, "Fallback to textise endpoint when browser fetch fails")
-	fs.StringVar(&cfg.TextiseBaseURL, "textise-base-url", d.TextiseBaseURL, "Textise fallback base URL")
 	fs.BoolVar(&cfg.Verbose, "v", false, "Verbose output")
 	fs.BoolVar(&cfg.Verbose, "verbose", false, "Verbose output")
-	fs.IntVar(&cfg.Top, "top", 0, "Limit search results to top N (0 means all)")
-	fs.StringVar(&cfg.CacheDir, "cache-dir", d.CacheDir, "Cache directory")
-	fs.BoolVar(&cfg.NoCache, "no-cache", false, "Disable cache for -fetch mode only")
+	fs.IntVar(&cfg.Top, "top", 0, "Limit results to top N (0 means all)")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage of %s:\n", fs.Name())
+		fmt.Fprintf(fs.Output(), "Usage: answf search [flags] <query>\n")
 		fs.PrintDefaults()
 	}
-	return fs
+
+	if err := fs.Parse(args); err != nil {
+		return Config{}, err
+	}
+
+	if cfg.Top < 0 {
+		return Config{}, errors.New("-top must be >= 0")
+	}
+
+	remaining := fs.Args()
+	if len(remaining) == 0 {
+		return Config{}, errors.New("search query is required")
+	}
+	query := strings.TrimSpace(strings.Join(remaining, " "))
+	if query == "" {
+		return Config{}, errors.New("search query is required")
+	}
+
+	expandedCacheDir, err := expandPath(cfg.CacheDir)
+	if err != nil {
+		return Config{}, fmt.Errorf("invalid cache-dir: %w", err)
+	}
+	cfg.CacheDir = expandedCacheDir
+	cfg.Search = query
+	cfg.FetchURL = ""
+	cfg.TargetURL = ""
+	cfg.NoCache = false
+	cfg.Markdown = d.FetchMarkdown
+	return cfg, nil
+}
+
+func baseConfigFromDefaults(d defaults) Config {
+	return Config{
+		ConfigPath:          d.ConfigPath,
+		PlaywrightURL:       strings.TrimSpace(d.PlaywrightURL),
+		SearXURL:            strings.TrimSpace(d.SearXURL),
+		PlaywrightTimeoutMS: d.PlaywrightTimeoutMS,
+		SearchTimeoutMS:     d.SearchTimeoutMS,
+		FallbackTextise:     d.FallbackTextise,
+		TextiseBaseURL:      d.TextiseBaseURL,
+		CacheDir:            d.CacheDir,
+		Markdown:            d.FetchMarkdown,
+	}
+}
+
+func stripConfigArgs(args []string) ([]string, error) {
+	out := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if strings.HasPrefix(arg, "--config=") {
+			value := strings.TrimSpace(strings.TrimPrefix(arg, "--config="))
+			if value == "" {
+				return nil, errors.New("--config requires a non-empty value")
+			}
+			continue
+		}
+		if arg == "--config" {
+			if i+1 >= len(args) {
+				return nil, errors.New("--config requires a value")
+			}
+			if strings.TrimSpace(args[i+1]) == "" {
+				return nil, errors.New("--config requires a non-empty value")
+			}
+			i++
+			continue
+		}
+		out = append(out, arg)
+	}
+	return out, nil
+}
+
+func PrintUsage(w io.Writer) {
+	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  answf [--config path] fetch [flags] <url>")
+	fmt.Fprintln(w, "  answf [--config path] search [flags] <query>")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Commands:")
+	fmt.Fprintln(w, "  fetch   Fetch and render a URL")
+	fmt.Fprintln(w, "  search  Search query through SearXNG")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Run 'answf <command> -h' for command-specific flags.")
 }
 
 func looksLikeURL(raw string) bool {
