@@ -14,29 +14,13 @@ import (
 var ErrUsage = errors.New("usage requested")
 
 func Parse(args []string, getenv func(string) string) (Config, error) {
-	var cfg Config
-	fs := flag.NewFlagSet("answf", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage of %s:\n", fs.Name())
-		fs.PrintDefaults()
+	d, err := loadDefaults(args, getenv)
+	if err != nil {
+		return Config{}, err
 	}
 
-	fs.StringVar(&cfg.FetchURL, "fetch", "", "Fetch and render content from URL")
-	fs.StringVar(&cfg.Search, "search", "", "Search query to run against SearXNG and print results")
-	fs.StringVar(&cfg.Search, "s", "", "Alias for -search")
-	fs.BoolVar(&cfg.Markdown, "md", false, "Output markdown instead of raw HTML")
-	fs.StringVar(&cfg.WSEndpoint, "ws-endpoint", firstNonEmpty(getenv("BROWSERLESS_WS_ENDPOINT"), "wss://browserless.aishift.co"), "Browserless websocket endpoint")
-	fs.StringVar(&cfg.SearXURL, "searx-url", firstNonEmpty(getenv("SEARX_URL"), "https://searx.aishift.co"), "SearXNG base URL")
-	fs.Float64Var(&cfg.TimeoutMS, "timeout-ms", 30000, "Navigation timeout in milliseconds")
-	fs.BoolVar(&cfg.FallbackTextise, "fallback-textise", true, "Fallback to textise endpoint when browser fetch fails")
-	fs.StringVar(&cfg.TextiseBaseURL, "textise-base-url", "https://r.jina.ai/http://", "Textise fallback base URL")
-	fs.BoolVar(&cfg.Verbose, "v", false, "Verbose output")
-	fs.BoolVar(&cfg.Verbose, "verbose", false, "Verbose output")
-	fs.IntVar(&cfg.Top, "top", 0, "Limit search results to top N (0 means all)")
-	fs.StringVar(&cfg.CacheDir, "cache-dir", defaultCacheDir(), "Cache directory")
-	fs.BoolVar(&cfg.NoCache, "no-cache", false, "Disable local cache reads/writes")
-
+	var cfg Config
+	fs := newFlagSet(&cfg, d, os.Stderr)
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
 	}
@@ -44,9 +28,17 @@ func Parse(args []string, getenv func(string) string) (Config, error) {
 	remaining := fs.Args()
 	cfg.FetchURL = strings.TrimSpace(cfg.FetchURL)
 	cfg.Search = strings.TrimSpace(cfg.Search)
+	cfg.PlaywrightURL = strings.TrimSpace(cfg.PlaywrightURL)
+	cfg.SearXURL = strings.TrimSpace(cfg.SearXURL)
 
 	if cfg.Top < 0 {
 		return Config{}, errors.New("-top must be >= 0")
+	}
+	if cfg.PlaywrightTimeoutMS <= 0 {
+		return Config{}, errors.New("-playwright-timeout-ms must be > 0")
+	}
+	if cfg.SearchTimeoutMS <= 0 {
+		return Config{}, errors.New("-search-timeout-ms must be > 0")
 	}
 
 	expandedCacheDir, err := expandPath(cfg.CacheDir)
@@ -85,33 +77,50 @@ func Parse(args []string, getenv func(string) string) (Config, error) {
 }
 
 func PrintUsage(w io.Writer) {
-	fs := flag.NewFlagSet("answf", flag.ContinueOnError)
-	fs.SetOutput(w)
+	d, err := loadDefaults(nil, os.Getenv)
+	if err != nil {
+		d = defaults{
+			ConfigPath:          "$HOME/.config/answf/config.yml",
+			PlaywrightTimeoutMS: 30000,
+			SearchTimeoutMS:     30000,
+			FallbackTextise:     true,
+			TextiseBaseURL:      "https://r.jina.ai",
+			CacheDir:            defaultCacheDir(),
+		}
+	}
+
+	var cfg Config
+	fs := newFlagSet(&cfg, d, w)
 	fmt.Fprintf(fs.Output(), "Usage of %s:\n", fs.Name())
-	fs.String("fetch", "", "Fetch and render content from URL")
-	fs.String("search", "", "Search query to run against SearXNG and print results")
-	fs.String("s", "", "Alias for -search")
-	fs.Bool("md", false, "Output markdown instead of raw HTML")
-	fs.String("ws-endpoint", "wss://browserless.aishift.co", "Browserless websocket endpoint")
-	fs.String("searx-url", "https://searx.aishift.co", "SearXNG base URL")
-	fs.Float64("timeout-ms", 30000, "Navigation timeout in milliseconds")
-	fs.Bool("fallback-textise", true, "Fallback to textise endpoint when browser fetch fails")
-	fs.String("textise-base-url", "https://r.jina.ai/http://", "Textise fallback base URL")
-	fs.Bool("v", false, "Verbose output")
-	fs.Bool("verbose", false, "Verbose output")
-	fs.Int("top", 0, "Limit search results to top N (0 means all)")
-	fs.String("cache-dir", defaultCacheDir(), "Cache directory")
-	fs.Bool("no-cache", false, "Disable local cache reads/writes")
 	fs.PrintDefaults()
 }
 
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if strings.TrimSpace(v) != "" {
-			return v
-		}
+func newFlagSet(cfg *Config, d defaults, output io.Writer) *flag.FlagSet {
+	fs := flag.NewFlagSet("answf", flag.ContinueOnError)
+	fs.SetOutput(output)
+	fs.StringVar(&cfg.ConfigPath, "config", d.ConfigPath, "Path to answf config.yml")
+	fs.StringVar(&cfg.FetchURL, "fetch", "", "Fetch and render content from URL")
+	fs.StringVar(&cfg.Search, "search", "", "Search query to run against SearXNG and print results")
+	fs.StringVar(&cfg.Search, "s", "", "Alias for -search")
+	fs.BoolVar(&cfg.Markdown, "md", false, "Output markdown instead of raw HTML")
+	fs.StringVar(&cfg.PlaywrightURL, "playwright-url", d.PlaywrightURL, "Playwright Browserless websocket URL")
+	fs.StringVar(&cfg.PlaywrightURL, "playwright-ws-endpoint", d.PlaywrightURL, "Alias for -playwright-url")
+	fs.StringVar(&cfg.PlaywrightURL, "ws-endpoint", d.PlaywrightURL, "Alias for -playwright-url")
+	fs.StringVar(&cfg.SearXURL, "searx-url", d.SearXURL, "SearXNG base URL")
+	fs.Float64Var(&cfg.PlaywrightTimeoutMS, "playwright-timeout-ms", d.PlaywrightTimeoutMS, "Playwright fetch timeout in milliseconds")
+	fs.Float64Var(&cfg.SearchTimeoutMS, "search-timeout-ms", d.SearchTimeoutMS, "Search request timeout in milliseconds")
+	fs.BoolVar(&cfg.FallbackTextise, "fallback-textise", d.FallbackTextise, "Fallback to textise endpoint when browser fetch fails")
+	fs.StringVar(&cfg.TextiseBaseURL, "textise-base-url", d.TextiseBaseURL, "Textise fallback base URL")
+	fs.BoolVar(&cfg.Verbose, "v", false, "Verbose output")
+	fs.BoolVar(&cfg.Verbose, "verbose", false, "Verbose output")
+	fs.IntVar(&cfg.Top, "top", 0, "Limit search results to top N (0 means all)")
+	fs.StringVar(&cfg.CacheDir, "cache-dir", d.CacheDir, "Cache directory")
+	fs.BoolVar(&cfg.NoCache, "no-cache", false, "Disable cache for -fetch mode only")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage of %s:\n", fs.Name())
+		fs.PrintDefaults()
 	}
-	return ""
+	return fs
 }
 
 func looksLikeURL(raw string) bool {

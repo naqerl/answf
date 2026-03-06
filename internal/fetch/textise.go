@@ -39,14 +39,12 @@ func fetchViaTextise(targetURL string, timeout time.Duration, textiseBase string
 func buildTextiseURL(base, target string) string {
 	base = strings.TrimSpace(base)
 	if base == "" {
-		base = "https://r.jina.ai/http://"
+		base = "https://r.jina.ai"
 	}
-	if !strings.HasSuffix(base, "/") {
-		base += "/"
-	}
+	base = strings.TrimSuffix(base, "/")
 
 	target = strings.TrimSpace(target)
 	target = strings.TrimPrefix(target, "https://")
 	target = strings.TrimPrefix(target, "http://")
-	return base + target
+	return base + "/http://" + target
 }

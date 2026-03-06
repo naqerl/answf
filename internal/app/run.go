@@ -10,7 +10,12 @@ import (
 )
 
 func Run(cfg cli.Config) (string, error) {
-	c := cache.Manager{
+	searchCache := cache.Manager{
+		Dir:      cfg.CacheDir,
+		Disabled: false,
+		Now:      time.Now,
+	}
+	fetchCache := cache.Manager{
 		Dir:      cfg.CacheDir,
 		Disabled: cfg.NoCache,
 		Now:      time.Now,
@@ -20,18 +25,18 @@ func Run(cfg cli.Config) (string, error) {
 		return search.Run(search.Config{
 			Query:    cfg.Search,
 			SearXURL: cfg.SearXURL,
-			Timeout:  time.Duration(cfg.TimeoutMS) * time.Millisecond,
+			Timeout:  time.Duration(cfg.SearchTimeoutMS) * time.Millisecond,
 			Verbose:  cfg.Verbose,
 			Top:      cfg.Top,
-		}, c)
+		}, searchCache)
 	}
 
 	return fetch.Run(fetch.Config{
 		TargetURL:       cfg.TargetURL,
-		WSEndpoint:      cfg.WSEndpoint,
-		Timeout:         time.Duration(cfg.TimeoutMS) * time.Millisecond,
+		WSEndpoint:      cfg.PlaywrightURL,
+		Timeout:         time.Duration(cfg.PlaywrightTimeoutMS) * time.Millisecond,
 		Markdown:        cfg.Markdown,
 		FallbackTextise: cfg.FallbackTextise,
 		TextiseBaseURL:  cfg.TextiseBaseURL,
-	}, c)
+	}, fetchCache)
 }
