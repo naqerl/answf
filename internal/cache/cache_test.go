@@ -1,4 +1,4 @@
-package main
+package cache
 
 import (
 	"os"
@@ -12,9 +12,9 @@ func TestCacheHitWithinTTL(t *testing.T) {
 
 	dir := t.TempDir()
 	now := time.Date(2026, 3, 4, 12, 0, 0, 0, time.UTC)
-	c := cacheManager{
-		dir: dir,
-		now: func() time.Time { return now },
+	c := Manager{
+		Dir: dir,
+		Now: func() time.Time { return now },
 	}
 
 	key := "k"
@@ -40,9 +40,9 @@ func TestCacheMissAfterTTL(t *testing.T) {
 
 	dir := t.TempDir()
 	now := time.Date(2026, 3, 4, 12, 0, 0, 0, time.UTC)
-	c := cacheManager{
-		dir: dir,
-		now: func() time.Time { return now },
+	c := Manager{
+		Dir: dir,
+		Now: func() time.Time { return now },
 	}
 
 	key := "k"
@@ -67,14 +67,14 @@ func TestCacheMissAfterTTL(t *testing.T) {
 func TestCacheKeyDeterministic(t *testing.T) {
 	t.Parallel()
 
-	k1 := keyForFetch("https://example.com", true)
-	k2 := keyForFetch("https://example.com", true)
+	k1 := KeyForFetch("https://example.com", true)
+	k2 := KeyForFetch("https://example.com", true)
 	if k1 != k2 {
 		t.Fatalf("expected stable key, got %q and %q", k1, k2)
 	}
 
-	s1 := keyForSearch("systemd", "https://searx.example")
-	s2 := keyForSearch("systemd", "https://searx.example")
+	s1 := KeyForSearch("systemd", "https://searx.example")
+	s2 := KeyForSearch("systemd", "https://searx.example")
 	if s1 != s2 {
 		t.Fatalf("expected stable search key, got %q and %q", s1, s2)
 	}
@@ -84,9 +84,9 @@ func TestNoCacheBypass(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	c := cacheManager{
-		dir:      dir,
-		disabled: true,
+	c := Manager{
+		Dir:      dir,
+		Disabled: true,
 	}
 
 	if err := c.Set("k", "value"); err != nil {

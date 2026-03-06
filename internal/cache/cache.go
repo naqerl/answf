@@ -1,4 +1,4 @@
-package main
+package cache
 
 import (
 	"crypto/sha256"
@@ -10,17 +10,17 @@ import (
 	"time"
 )
 
-type cacheManager struct {
-	dir      string
-	disabled bool
-	now      func() time.Time
+type Manager struct {
+	Dir      string
+	Disabled bool
+	Now      func() time.Time
 }
 
-func keyForFetch(url string, markdown bool) string {
+func KeyForFetch(url string, markdown bool) string {
 	return hashKey("fetch|" + strings.TrimSpace(url) + fmt.Sprintf("|md=%t", markdown))
 }
 
-func keyForSearch(query string, searxURL string) string {
+func KeyForSearch(query string, searxURL string) string {
 	return hashKey("search|" + strings.TrimSpace(query) + "|searx=" + strings.TrimSpace(searxURL))
 }
 
@@ -29,19 +29,19 @@ func hashKey(raw string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func (c cacheManager) nowFunc() func() time.Time {
-	if c.now != nil {
-		return c.now
+func (c Manager) nowFunc() func() time.Time {
+	if c.Now != nil {
+		return c.Now
 	}
 	return time.Now
 }
 
-func (c cacheManager) cachePath(key string) string {
-	return filepath.Join(c.dir, key+".txt")
+func (c Manager) cachePath(key string) string {
+	return filepath.Join(c.Dir, key+".txt")
 }
 
-func (c cacheManager) Get(key string, ttl time.Duration) (string, bool, error) {
-	if c.disabled {
+func (c Manager) Get(key string, ttl time.Duration) (string, bool, error) {
+	if c.Disabled {
 		return "", false, nil
 	}
 	path := c.cachePath(key)
@@ -67,14 +67,14 @@ func (c cacheManager) Get(key string, ttl time.Duration) (string, bool, error) {
 	return string(body), true, nil
 }
 
-func (c cacheManager) Set(key string, content string) error {
-	if c.disabled {
+func (c Manager) Set(key string, content string) error {
+	if c.Disabled {
 		return nil
 	}
-	if strings.TrimSpace(c.dir) == "" {
+	if strings.TrimSpace(c.Dir) == "" {
 		return fmt.Errorf("cache directory is empty")
 	}
-	if err := os.MkdirAll(c.dir, 0o755); err != nil {
+	if err := os.MkdirAll(c.Dir, 0o755); err != nil {
 		return err
 	}
 	path := c.cachePath(key)
