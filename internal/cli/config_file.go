@@ -12,12 +12,21 @@ import (
 )
 
 type fileConfig struct {
-	PlaywrightURL       *string  `yaml:"playwright_url"`
-	SearXURL            *string  `yaml:"searx_url"`
-	PlaywrightTimeoutMS *float64 `yaml:"playwright_timeout_ms"`
-	SearchTimeoutMS     *float64 `yaml:"search_timeout_ms"`
-	FallbackTextise     *bool    `yaml:"fallback_textise"`
-	TextiseBaseURL      *string  `yaml:"textise_base_url"`
+	Fetch  *fetchFileConfig  `yaml:"fetch"`
+	Search *searchFileConfig `yaml:"search"`
+}
+
+type fetchFileConfig struct {
+	PlaywrightURL   *string  `yaml:"playwright_url"`
+	TimeoutMS       *float64 `yaml:"timeout_ms"`
+	FallbackTextise *bool    `yaml:"fallback_textise"`
+	TextiseBaseURL  *string  `yaml:"textise_base_url"`
+	Format          *string  `yaml:"format"`
+}
+
+type searchFileConfig struct {
+	SearXURL  *string  `yaml:"searx_url"`
+	TimeoutMS *float64 `yaml:"timeout_ms"`
 }
 
 type defaults struct {
@@ -29,6 +38,7 @@ type defaults struct {
 	FallbackTextise     bool
 	TextiseBaseURL      string
 	CacheDir            string
+	FetchMarkdown       bool
 }
 
 func loadDefaults(args []string, getenv func(string) string) (defaults, error) {
@@ -38,6 +48,7 @@ func loadDefaults(args []string, getenv func(string) string) (defaults, error) {
 		FallbackTextise:     true,
 		TextiseBaseURL:      "https://r.jina.ai",
 		CacheDir:            defaultCacheDir(),
+		FetchMarkdown:       false,
 	}
 
 	resolvedPath, explicitPath, err := resolveConfigPath(args, getenv)
@@ -54,23 +65,39 @@ func loadDefaults(args []string, getenv func(string) string) (defaults, error) {
 		return d, nil
 	}
 
-	if parsed.PlaywrightURL != nil {
-		d.PlaywrightURL = strings.TrimSpace(*parsed.PlaywrightURL)
+	if parsed.Fetch != nil {
+		if parsed.Fetch.PlaywrightURL != nil {
+			d.PlaywrightURL = strings.TrimSpace(*parsed.Fetch.PlaywrightURL)
+		}
+		if parsed.Fetch.TimeoutMS != nil {
+			d.PlaywrightTimeoutMS = *parsed.Fetch.TimeoutMS
+		}
+		if parsed.Fetch.FallbackTextise != nil {
+			d.FallbackTextise = *parsed.Fetch.FallbackTextise
+		}
+		if parsed.Fetch.TextiseBaseURL != nil {
+			d.TextiseBaseURL = strings.TrimSpace(*parsed.Fetch.TextiseBaseURL)
+		}
+		if parsed.Fetch.Format != nil {
+			format := strings.ToLower(strings.TrimSpace(*parsed.Fetch.Format))
+			switch format {
+			case "html":
+				d.FetchMarkdown = false
+			case "md", "markdown":
+				d.FetchMarkdown = true
+			default:
+				return defaults{}, fmt.Errorf("parse config file %q: fetch.format must be one of: html, md", resolvedPath)
+			}
+		}
 	}
-	if parsed.SearXURL != nil {
-		d.SearXURL = strings.TrimSpace(*parsed.SearXURL)
-	}
-	if parsed.PlaywrightTimeoutMS != nil {
-		d.PlaywrightTimeoutMS = *parsed.PlaywrightTimeoutMS
-	}
-	if parsed.SearchTimeoutMS != nil {
-		d.SearchTimeoutMS = *parsed.SearchTimeoutMS
-	}
-	if parsed.FallbackTextise != nil {
-		d.FallbackTextise = *parsed.FallbackTextise
-	}
-	if parsed.TextiseBaseURL != nil {
-		d.TextiseBaseURL = strings.TrimSpace(*parsed.TextiseBaseURL)
+
+	if parsed.Search != nil {
+		if parsed.Search.SearXURL != nil {
+			d.SearXURL = strings.TrimSpace(*parsed.Search.SearXURL)
+		}
+		if parsed.Search.TimeoutMS != nil {
+			d.SearchTimeoutMS = *parsed.Search.TimeoutMS
+		}
 	}
 
 	return d, nil
@@ -165,11 +192,12 @@ func readConfigFile(path string, explicit bool) (fileConfig, bool, error) {
 		return fileConfig{}, false, fmt.Errorf("parse config file %q: %w", path, err)
 	}
 
-	if cfg.PlaywrightTimeoutMS != nil && *cfg.PlaywrightTimeoutMS <= 0 {
-		return fileConfig{}, false, fmt.Errorf("parse config file %q: playwright_timeout_ms must be > 0", path)
+	if cfg.Fetch != nil && cfg.Fetch.TimeoutMS != nil && *cfg.Fetch.TimeoutMS <= 0 {
+		return fileConfig{}, false, fmt.Errorf("parse config file %q: fetch.timeout_ms must be > 0", path)
 	}
-	if cfg.SearchTimeoutMS != nil && *cfg.SearchTimeoutMS <= 0 {
-		return fileConfig{}, false, fmt.Errorf("parse config file %q: search_timeout_ms must be > 0", path)
+	if cfg.Search != nil && cfg.Search.TimeoutMS != nil && *cfg.Search.TimeoutMS <= 0 {
+		return fileConfig{}, false, fmt.Errorf("parse config file %q: search.timeout_ms must be > 0", path)
 	}
+
 	return cfg, true, nil
 }

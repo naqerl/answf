@@ -11,7 +11,8 @@ func TestParseLoadsConfigDefaults(t *testing.T) {
 
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yml")
-	if err := os.WriteFile(cfgPath, []byte("playwright_url: wss://browserless.example\nsearx_url: https://searx.example\n"), 0o644); err != nil {
+	content := "fetch:\n  playwright_url: wss://browserless.example\n  format: md\nsearch:\n  searx_url: https://searx.example\n"
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 
@@ -25,6 +26,9 @@ func TestParseLoadsConfigDefaults(t *testing.T) {
 	if cfg.SearXURL != "https://searx.example" {
 		t.Fatalf("unexpected searx url: %q", cfg.SearXURL)
 	}
+	if !cfg.Markdown {
+		t.Fatalf("expected markdown default from fetch.format=md")
+	}
 }
 
 func TestParseCLIOverridesConfigDefaults(t *testing.T) {
@@ -32,7 +36,7 @@ func TestParseCLIOverridesConfigDefaults(t *testing.T) {
 
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yml")
-	if err := os.WriteFile(cfgPath, []byte("searx_url: https://searx.example\n"), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte("search:\n  searx_url: https://searx.example\n"), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 
@@ -55,7 +59,7 @@ func TestParseUsesXDGConfigPath(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 	cfgPath := filepath.Join(cfgDir, "config.yml")
-	if err := os.WriteFile(cfgPath, []byte("searx_url: https://searx.example\n"), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte("search:\n  searx_url: https://searx.example\n"), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 
@@ -72,5 +76,32 @@ func TestParseUsesXDGConfigPath(t *testing.T) {
 	}
 	if cfg.SearXURL != "https://searx.example" {
 		t.Fatalf("expected xdg config value, got %q", cfg.SearXURL)
+	}
+}
+
+func TestParseHTMLOverridesMarkdownDefault(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yml")
+	if err := os.WriteFile(cfgPath, []byte("fetch:\n  format: md\n"), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := Parse([]string{"--config", cfgPath, "-fetch", "example.com", "-html"}, os.Getenv)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	if cfg.Markdown {
+		t.Fatalf("expected -html to force HTML output")
+	}
+}
+
+func TestParseRejectsMDAndHTMLTogether(t *testing.T) {
+	t.Parallel()
+
+	_, err := Parse([]string{"-fetch", "example.com", "-md", "-html"}, os.Getenv)
+	if err == nil {
+		t.Fatalf("expected error when both -md and -html are set")
 	}
 }

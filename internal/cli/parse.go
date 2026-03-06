@@ -20,9 +20,23 @@ func Parse(args []string, getenv func(string) string) (Config, error) {
 	}
 
 	var cfg Config
-	fs := newFlagSet(&cfg, d, os.Stderr)
+	var forceHTML bool
+	fs := newFlagSet(&cfg, &forceHTML, d, os.Stderr)
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
+	}
+
+	mdExplicit := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "md" {
+			mdExplicit = true
+		}
+	})
+	if forceHTML && mdExplicit {
+		return Config{}, errors.New("use only one of -md or -html")
+	}
+	if forceHTML {
+		cfg.Markdown = false
 	}
 
 	remaining := fs.Args()
@@ -86,23 +100,26 @@ func PrintUsage(w io.Writer) {
 			FallbackTextise:     true,
 			TextiseBaseURL:      "https://r.jina.ai",
 			CacheDir:            defaultCacheDir(),
+			FetchMarkdown:       false,
 		}
 	}
 
 	var cfg Config
-	fs := newFlagSet(&cfg, d, w)
+	var forceHTML bool
+	fs := newFlagSet(&cfg, &forceHTML, d, w)
 	fmt.Fprintf(fs.Output(), "Usage of %s:\n", fs.Name())
 	fs.PrintDefaults()
 }
 
-func newFlagSet(cfg *Config, d defaults, output io.Writer) *flag.FlagSet {
+func newFlagSet(cfg *Config, forceHTML *bool, d defaults, output io.Writer) *flag.FlagSet {
 	fs := flag.NewFlagSet("answf", flag.ContinueOnError)
 	fs.SetOutput(output)
 	fs.StringVar(&cfg.ConfigPath, "config", d.ConfigPath, "Path to answf config.yml")
 	fs.StringVar(&cfg.FetchURL, "fetch", "", "Fetch and render content from URL")
 	fs.StringVar(&cfg.Search, "search", "", "Search query to run against SearXNG and print results")
 	fs.StringVar(&cfg.Search, "s", "", "Alias for -search")
-	fs.BoolVar(&cfg.Markdown, "md", false, "Output markdown instead of raw HTML")
+	fs.BoolVar(&cfg.Markdown, "md", d.FetchMarkdown, "Output markdown for -fetch")
+	fs.BoolVar(forceHTML, "html", false, "Output HTML for -fetch")
 	fs.StringVar(&cfg.PlaywrightURL, "playwright-url", d.PlaywrightURL, "Playwright Browserless websocket URL")
 	fs.StringVar(&cfg.PlaywrightURL, "playwright-ws-endpoint", d.PlaywrightURL, "Alias for -playwright-url")
 	fs.StringVar(&cfg.PlaywrightURL, "ws-endpoint", d.PlaywrightURL, "Alias for -playwright-url")

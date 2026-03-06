@@ -64,7 +64,7 @@ func TestReadConfigFileParsesYAML(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yml")
-	content := "playwright_url: wss://browserless.example\nsearx_url: https://searx.example\nplaywright_timeout_ms: 12000\nsearch_timeout_ms: 15000\nfallback_textise: false\n"
+	content := "fetch:\n  playwright_url: wss://browserless.example\n  timeout_ms: 12000\n  fallback_textise: false\n  format: md\nsearch:\n  searx_url: https://searx.example\n  timeout_ms: 15000\n"
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write file: %v", err)
 	}
@@ -76,19 +76,19 @@ func TestReadConfigFileParsesYAML(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected config file to be loaded")
 	}
-	if cfg.PlaywrightURL == nil || *cfg.PlaywrightURL != "wss://browserless.example" {
-		t.Fatalf("unexpected playwright_url: %+v", cfg.PlaywrightURL)
+	if cfg.Fetch == nil || cfg.Fetch.PlaywrightURL == nil || *cfg.Fetch.PlaywrightURL != "wss://browserless.example" {
+		t.Fatalf("unexpected fetch.playwright_url")
 	}
-	if cfg.SearXURL == nil || *cfg.SearXURL != "https://searx.example" {
-		t.Fatalf("unexpected searx_url: %+v", cfg.SearXURL)
+	if cfg.Fetch.TimeoutMS == nil || *cfg.Fetch.TimeoutMS != 12000 {
+		t.Fatalf("unexpected fetch.timeout_ms: %+v", cfg.Fetch.TimeoutMS)
 	}
-	if cfg.PlaywrightTimeoutMS == nil || *cfg.PlaywrightTimeoutMS != 12000 {
-		t.Fatalf("unexpected playwright_timeout_ms: %+v", cfg.PlaywrightTimeoutMS)
+	if cfg.Fetch.Format == nil || *cfg.Fetch.Format != "md" {
+		t.Fatalf("unexpected fetch.format: %+v", cfg.Fetch.Format)
 	}
-	if cfg.SearchTimeoutMS == nil || *cfg.SearchTimeoutMS != 15000 {
-		t.Fatalf("unexpected search_timeout_ms: %+v", cfg.SearchTimeoutMS)
+	if cfg.Search == nil || cfg.Search.SearXURL == nil || *cfg.Search.SearXURL != "https://searx.example" {
+		t.Fatalf("unexpected search.searx_url")
 	}
-	if cfg.FallbackTextise == nil || *cfg.FallbackTextise {
-		t.Fatalf("unexpected fallback_textise: %+v", cfg.FallbackTextise)
+	if cfg.Search.TimeoutMS == nil || *cfg.Search.TimeoutMS != 15000 {
+		t.Fatalf("unexpected search.timeout_ms: %+v", cfg.Search.TimeoutMS)
 	}
 }

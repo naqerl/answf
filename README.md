@@ -42,12 +42,15 @@ Config file lookup order:
 Example config:
 
 ```yaml
-playwright_url: "wss://browserless.example/ws"
-searx_url: "https://searx.example"
-playwright_timeout_ms: 30000
-search_timeout_ms: 30000
-fallback_textise: true
-textise_base_url: "https://r.jina.ai"
+fetch:
+  playwright_url: "wss://browserless.example/ws"
+  timeout_ms: 30000
+  fallback_textise: true
+  textise_base_url: "https://r.jina.ai"
+  format: "html" # html or md
+search:
+  searx_url: "https://searx.example"
+  timeout_ms: 30000
 ```
 
 CLI flags still override config values.
@@ -56,6 +59,7 @@ Markdown output:
 
 ```bash
 answf -fetch https://github.com/browserless/browserless -md
+answf -fetch https://github.com/browserless/browserless -html
 ```
 
 Fallback fetch for bot-protected pages:
