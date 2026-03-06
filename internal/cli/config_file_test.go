@@ -9,7 +9,7 @@ import (
 func TestExtractConfigPath(t *testing.T) {
 	t.Parallel()
 
-	got, ok, err := extractConfigPath([]string{"--config", "./a.yml", "-s", "q"})
+	got, ok, err := extractConfigPath([]string{"--config", "./a.yml", "-search", "q"})
 	if err != nil {
 		t.Fatalf("extractConfigPath error: %v", err)
 	}
@@ -17,7 +17,7 @@ func TestExtractConfigPath(t *testing.T) {
 		t.Fatalf("unexpected result ok=%t value=%q", ok, got)
 	}
 
-	got, ok, err = extractConfigPath([]string{"--config=./b.yml", "-s", "q"})
+	got, ok, err = extractConfigPath([]string{"--config=./b.yml", "-search", "q"})
 	if err != nil {
 		t.Fatalf("extractConfigPath error: %v", err)
 	}
